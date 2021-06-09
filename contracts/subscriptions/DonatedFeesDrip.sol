@@ -32,7 +32,7 @@ contract DonatedFeesDrip is Ownable {
         previousDripPeriodId = currentPeriodId;
 
         JurorsRegistry jurorsRegistry = JurorsRegistry(arbitrator.getJurorsRegistry());
-        uint256 donatedFeeAmount = jurorsRegistry.totalStaked().pctHighPrecision(periodPercentageYield);
+        uint256 donatedFeeAmount = jurorsRegistry.totalActiveBalance().pctHighPrecision(periodPercentageYield);
         ERC20 feeToken = courtSubscriptions.currentFeeToken();
         require(feeToken.safeTransfer(address(courtSubscriptions), donatedFeeAmount), "ERROR: Not enough funds");
     }
