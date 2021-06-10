@@ -1,5 +1,7 @@
 const { buildHelper } = require('../helpers/wrappers/court')(web3, artifacts)
 const { assertRevert } = require('../helpers/asserts/assertThrow')
+const { assertBn } = require('../helpers/asserts/assertBn')
+const { bn, bigExp } = require('../helpers/lib/numbers')
 const { CONTROLLED_ERRORS, SUBSCRIPTIONS_ERRORS } = require('../helpers/utils/errors')
 
 const CourtSubscriptions = artifacts.require('CourtSubscriptions')
@@ -11,6 +13,7 @@ contract('CourtSubscriptions', ([_, someone]) => {
   let controller, feeToken
 
   const PERIOD_DURATION = 24 * 30 // 30 days, assuming terms are 1h
+  const PERIOD_PERCENTAGE_YIELD = bigExp(2, 16) // 2%
 
   before('create base contracts', async () => {
     controller = await buildHelper().deploy()
@@ -20,11 +23,12 @@ contract('CourtSubscriptions', ([_, someone]) => {
   describe('constructor', () => {
     context('when the initialization succeeds', () => {
       it('initializes subscriptions correctly', async () => {
-        const subscriptions = await CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeToken.address)
+        const subscriptions = await CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeToken.address, PERIOD_PERCENTAGE_YIELD)
 
         assert.equal(await subscriptions.getController(), controller.address, 'subscriptions controller does not match')
         assert.equal(await subscriptions.periodDuration(), PERIOD_DURATION, 'subscriptions duration does not match')
         assert.equal(await subscriptions.currentFeeToken(), feeToken.address, 'fee token does not match')
+        assertBn(await subscriptions.periodPercentageYield(), PERIOD_PERCENTAGE_YIELD, 'incorrect yield')
       })
     })
 
@@ -33,7 +37,7 @@ contract('CourtSubscriptions', ([_, someone]) => {
         const controllerAddress = ZERO_ADDRESS
 
         it('reverts', async () => {
-          await assertRevert(CourtSubscriptions.new(controllerAddress, PERIOD_DURATION, feeToken.address), CONTROLLED_ERRORS.CONTROLLER_NOT_CONTRACT)
+          await assertRevert(CourtSubscriptions.new(controllerAddress, PERIOD_DURATION, feeToken.address, PERIOD_PERCENTAGE_YIELD), CONTROLLED_ERRORS.CONTROLLER_NOT_CONTRACT)
         })
       })
 
@@ -41,7 +45,7 @@ contract('CourtSubscriptions', ([_, someone]) => {
         const controllerAddress = someone
 
         it('reverts', async () => {
-          await assertRevert(CourtSubscriptions.new(controllerAddress, PERIOD_DURATION, feeToken.address), CONTROLLED_ERRORS.CONTROLLER_NOT_CONTRACT)
+          await assertRevert(CourtSubscriptions.new(controllerAddress, PERIOD_DURATION, feeToken.address, PERIOD_PERCENTAGE_YIELD), CONTROLLED_ERRORS.CONTROLLER_NOT_CONTRACT)
         })
       })
 
@@ -49,7 +53,7 @@ contract('CourtSubscriptions', ([_, someone]) => {
         const periodDuration = 0
 
         it('reverts', async () => {
-          await assertRevert(CourtSubscriptions.new(controller.address, periodDuration, feeToken.address), SUBSCRIPTIONS_ERRORS.PERIOD_DURATION_ZERO)
+          await assertRevert(CourtSubscriptions.new(controller.address, periodDuration, feeToken.address, PERIOD_PERCENTAGE_YIELD), SUBSCRIPTIONS_ERRORS.PERIOD_DURATION_ZERO)
         })
       })
 
@@ -57,7 +61,7 @@ contract('CourtSubscriptions', ([_, someone]) => {
         const feeTokenAddress = ZERO_ADDRESS
 
         it('reverts', async () => {
-          await assertRevert(CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeTokenAddress), SUBSCRIPTIONS_ERRORS.FEE_TOKEN_NOT_CONTRACT)
+          await assertRevert(CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeTokenAddress, PERIOD_PERCENTAGE_YIELD), SUBSCRIPTIONS_ERRORS.FEE_TOKEN_NOT_CONTRACT)
         })
       })
 
@@ -65,7 +69,7 @@ contract('CourtSubscriptions', ([_, someone]) => {
         const feeTokenAddress = someone
 
         it('reverts', async () => {
-          await assertRevert(CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeTokenAddress), SUBSCRIPTIONS_ERRORS.FEE_TOKEN_NOT_CONTRACT)
+          await assertRevert(CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeTokenAddress, PERIOD_PERCENTAGE_YIELD), SUBSCRIPTIONS_ERRORS.FEE_TOKEN_NOT_CONTRACT)
         })
       })
     })

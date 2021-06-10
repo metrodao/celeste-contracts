@@ -1,5 +1,7 @@
 const { buildHelper } = require('../helpers/wrappers/court')(web3, artifacts)
 const { assertRevert } = require('../helpers/asserts/assertThrow')
+const { assertBn } = require('../helpers/asserts/assertBn')
+const { bn, bigExp } = require('../helpers/lib/numbers')
 const { SUBSCRIPTIONS_EVENTS } = require('../helpers/utils/events')
 const { assertEvent, assertAmountOfEvents } = require('../helpers/asserts/assertEvent')
 const { CONTROLLED_ERRORS, SUBSCRIPTIONS_ERRORS } = require('../helpers/utils/errors')
@@ -13,6 +15,7 @@ contract('CourtSubscriptions', ([_, governor, someone, something]) => {
   let controller, subscriptions, feeToken
 
   const PERIOD_DURATION = 24 * 30 // 30 days, assuming terms are 1h
+  const DEFAULT_PERIOD_YIELD = bigExp(2, 16)
 
   before('create base contracts', async () => {
     controller = await buildHelper().deploy({ configGovernor: governor })
@@ -20,7 +23,7 @@ contract('CourtSubscriptions', ([_, governor, someone, something]) => {
   })
 
   beforeEach('create subscriptions module', async () => {
-    subscriptions = await CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeToken.address)
+    subscriptions = await CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeToken.address, DEFAULT_PERIOD_YIELD)
     await controller.setSubscriptions(subscriptions.address)
   })
 
@@ -79,4 +82,26 @@ contract('CourtSubscriptions', ([_, governor, someone, something]) => {
       })
     })
   })
+
+  describe('setPeriodPercentageYield', () => {
+    context('when the sender is the governor', async () => {
+      const from = governor
+
+      it('updates the current fee token address', async () => {
+        const newYield = bigExp(1, 16) // 1%
+        await subscriptions.setPeriodPercentageYield(newYield, { from })
+
+        assertBn(await subscriptions.periodPercentageYield(), newYield, 'fee token does not match')
+      })
+    })
+
+    context('when the sender is not the governor', async () => {
+      const from = someone
+
+      it('reverts', async () => {
+        await assertRevert(subscriptions.setPeriodPercentageYield(bigExp(3, 16), { from }), CONTROLLED_ERRORS.SENDER_NOT_CONFIG_GOVERNOR)
+      })
+    })
+  })
+
 })
