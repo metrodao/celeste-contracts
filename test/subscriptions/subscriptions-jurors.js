@@ -20,6 +20,7 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
   const PCT_BASE_HIGH_PRECISION = bigExp(1, 18)
   const DONATED_FEES = bigExp(10, 18)
   const PERIOD_DURATION = 30           // 30 days, assuming terms are 1d
+  const DEFAULT_PERIOD_YIELD = bigExp(2, 16) // 2% of total active stake
   const GOVERNOR_SHARE_PCT = bn(100)        // 100‱ = 1%
 
   const MIN_JURORS_ACTIVE_TOKENS = bigExp(100, 18)
@@ -35,7 +36,7 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
       minMaxPctTotalSupply: PCT_BASE_HIGH_PRECISION.sub(bn(1)), maxMaxPctTotalSupply: PCT_BASE_HIGH_PRECISION })
     feeToken = courtHelper.feeToken
 
-    subscriptions = await CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeToken.address)
+    subscriptions = await CourtSubscriptions.new(controller.address, PERIOD_DURATION, feeToken.address, DEFAULT_PERIOD_YIELD)
     await controller.setSubscriptions(subscriptions.address)
 
     jurorsRegistry = await JurorsRegistry.new(controller.address, TOTAL_ACTIVE_BALANCE_LIMIT)
@@ -89,22 +90,24 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
       it('transfers share fees to the juror with term 1 as checkpoint', async () => {
         await setCheckpointUsedToTerm(1)
         const previousBalance = await feeToken.balanceOf(jurorPeriod0Term1)
+        const expectedEarned = jurorPeriod0Term1Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
 
         await subscriptions.claimFees({ from: jurorPeriod0Term1 })
 
         const currentBalance = await feeToken.balanceOf(jurorPeriod0Term1)
-        assertBn(previousBalance.add(DONATED_FEES), currentBalance, 'juror balance does not match')
+        assertBn(previousBalance.add(expectedEarned), currentBalance, 'juror balance does not match')
         assert.isTrue(await subscriptions.hasJurorClaimed(jurorPeriod0Term1))
       })
 
       it('transfers share fees to the juror when they were active in previous term', async () => {
         await setCheckpointUsedToTerm(2)
         const previousBalance = await feeToken.balanceOf(jurorPeriod0Term1)
+        const expectedEarned = jurorPeriod0Term1Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
 
         await subscriptions.claimFees({ from: jurorPeriod0Term1 })
 
         const currentBalance = await feeToken.balanceOf(jurorPeriod0Term1)
-        assertBn(previousBalance.add(DONATED_FEES), currentBalance, 'juror balance does not match')
+        assertBn(previousBalance.add(expectedEarned), currentBalance, 'juror balance does not match')
         assert.isTrue(await subscriptions.hasJurorClaimed(jurorPeriod0Term1))
       })
 
@@ -116,20 +119,20 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
       it('transfers share fees to the juror with term 3 as checkpoint', async () => {
         await setCheckpointUsedToTerm(3)
         const expectedTotalActiveBalance = jurorPeriod0Term1Balance.add(jurorPeriod0Term3Balance)
-        const expectedShareFees = DONATED_FEES.mul(jurorPeriod0Term3Balance).div(expectedTotalActiveBalance)
+        const expectedEarned = jurorPeriod0Term3Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
         const previousBalance = await feeToken.balanceOf(jurorPeriod0Term3)
 
         await subscriptions.claimFees({ from: jurorPeriod0Term3 })
 
         const currentBalance = await feeToken.balanceOf(jurorPeriod0Term3)
-        assertBn(previousBalance.add(expectedShareFees), currentBalance, 'juror balance does not match')
+        assertBn(previousBalance.add(expectedEarned), currentBalance, 'juror balance does not match')
         assert.isTrue(await subscriptions.hasJurorClaimed(jurorPeriod0Term3))
       })
 
       it('transfers share fees to the second claiming juror', async () => {
         const previousBalance = await feeToken.balanceOf(jurorPeriod0Term1)
         const expectedTotalActiveBalance = jurorPeriod0Term1Balance.add(jurorPeriod0Term3Balance)
-        const secondJurorExpectedShareFees = DONATED_FEES.mul(jurorPeriod0Term1Balance).div(expectedTotalActiveBalance)
+        const secondJurorExpectedShareFees = jurorPeriod0Term1Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
         await subscriptions.claimFees({ from: jurorPeriod0Term3 })
 
         await subscriptions.claimFees({ from: jurorPeriod0Term1 })
@@ -147,10 +150,11 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
         const { periodBalanceCheckpoint, feeToken: periodFeeToken, totalActiveBalance, donatedFees } = await subscriptions.getPeriod(periodId - 1)
 
+        const expectedDonatedFees = totalActiveBalance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
         assertBn(periodBalanceCheckpoint, checkpointTerm, 'checkpoint does not match')
         assert.equal(periodFeeToken, feeToken.address, 'fee token does not match')
         assertBn(totalActiveBalance, jurorPeriod0Term1Balance, 'total active balance does not match')
-        assertBn(donatedFees, DONATED_FEES, 'donated fees does not match')
+        assertBn(donatedFees, expectedDonatedFees, 'donated fees does not match')
       })
 
       it('reverts when claiming fees twice', async () => {
@@ -158,6 +162,17 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
         await subscriptions.claimFees({ from: jurorPeriod0Term1 })
 
         await assertRevert(subscriptions.claimFees({ from: jurorPeriod0Term1 }), 'CS_JUROR_FEES_ALREADY_CLAIMED')
+      })
+
+      it('reverts when not enough funds in subscriptions module', async () => {
+        const extraActivatedTokens = bigExp(1000, 18)
+        await feeToken.generateTokens(jurorPeriod0Term1, extraActivatedTokens)
+        await feeToken.approveAndCall(jurorsRegistry.address, extraActivatedTokens, ACTIVATE_DATA, { from: jurorPeriod0Term1 })
+        const currentTerm = await controller.getCurrentTermId()
+        await controller.mockSetTerm(currentTerm + 1)
+        await setCheckpointUsedToTerm(currentTerm + 1)
+
+        await assertRevert(subscriptions.claimFees({ from: jurorPeriod0Term1 }), "CS_TOKEN_TRANSFER_FAILED")
       })
     })
 
@@ -176,16 +191,17 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
       it('estimates juror share correctly with term 1 as checkpoint', async () => {
         await setCheckpointUsedToTerm(1)
 
+        const expectedShare = jurorPeriod0Term1Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
+
         const { feeToken: tokenAddress, jurorShare } = await subscriptions.getJurorShare(jurorPeriod0Term1)
 
         assert.equal(tokenAddress, feeToken.address, 'fee token address does not match')
-        assertBn(jurorShare, DONATED_FEES, 'juror share fees does not match')
+        assertBn(jurorShare, expectedShare, 'juror share fees does not match')
       })
 
       it('estimates previously registered juror share correctly with term 3 as checkpoint', async () => {
         await setCheckpointUsedToTerm(3)
-        const expectedTotalActiveBalance = jurorPeriod0Term1Balance.add(jurorPeriod0Term3Balance)
-        const expectedShareFees = DONATED_FEES.mul(jurorPeriod0Term1Balance).div(expectedTotalActiveBalance)
+        const expectedShareFees = jurorPeriod0Term1Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
 
         const { feeToken: tokenAddress, jurorShare } = await subscriptions.getJurorShare(jurorPeriod0Term1)
 
@@ -195,8 +211,7 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
       it('estimates juror share correctly with term 3 as checkpoint', async () => {
         await setCheckpointUsedToTerm(3)
-        const expectedTotalActiveBalance = jurorPeriod0Term1Balance.add(jurorPeriod0Term3Balance)
-        const expectedShareFees = DONATED_FEES.mul(jurorPeriod0Term3Balance).div(expectedTotalActiveBalance)
+        const expectedShareFees = jurorPeriod0Term3Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
 
         const { feeToken: tokenAddress, jurorShare } = await subscriptions.getJurorShare(jurorPeriod0Term3)
 
@@ -206,8 +221,7 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
       it('estimates juror share correctly after a claim has occurred', async () => {
         await setCheckpointUsedToTerm(3)
-        const expectedTotalActiveBalance = jurorPeriod0Term1Balance.add(jurorPeriod0Term3Balance)
-        const expectedShareFees = DONATED_FEES.mul(jurorPeriod0Term3Balance).div(expectedTotalActiveBalance)
+        const expectedShareFees = jurorPeriod0Term3Balance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
         await subscriptions.claimFees({ from: jurorPeriod0Term1 })
 
         const { feeToken: tokenAddress, jurorShare } = await subscriptions.getJurorShare(jurorPeriod0Term3)
@@ -274,10 +288,11 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
       const { periodBalanceCheckpoint, feeToken: periodFeeToken, totalActiveBalance, donatedFees } = await subscriptions.getCurrentPeriod()
 
+      const expectedDonatedFees = totalActiveBalance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
       assertBn(periodBalanceCheckpoint, periodCheckpoint, 'checkpoint does not match')
       assert.equal(periodFeeToken, feeToken.address, 'fee token does not match')
       assertBn(totalActiveBalance, jurorPeriod0Term1Balance, 'total active balance does not match')
-      assertBn(donatedFees, DONATED_FEES, 'donated fees does not match')
+      assertBn(donatedFees, expectedDonatedFees, 'donated fees does not match')
     })
 
     it('gets correct period details at period 1', async () => {
@@ -288,10 +303,11 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
       const { periodBalanceCheckpoint, feeToken: periodFeeToken, totalActiveBalance, donatedFees } = await subscriptions.getCurrentPeriod()
 
+      const expectedDonatedFees = totalActiveBalance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
       assertBn(periodBalanceCheckpoint, periodCheckpoint, 'checkpoint does not match')
       assert.equal(periodFeeToken, feeToken.address, 'fee token does not match')
       assertBn(totalActiveBalance, expectedTotalActiveBalance, 'total active balance does not match')
-      assertBn(donatedFees, DONATED_FEES, 'donated fees does not match')
+      assertBn(donatedFees, expectedDonatedFees, 'donated fees does not match')
     })
   })
 
@@ -311,10 +327,11 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
       const { periodBalanceCheckpoint, feeToken: periodFeeToken, totalActiveBalance, donatedFees } = await subscriptions.getPeriod(0)
 
+      const expectedDonatedFees = totalActiveBalance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
       assertBn(periodBalanceCheckpoint, periodCheckpoint, 'checkpoint does not match')
       assert.equal(periodFeeToken, feeToken.address, 'fee token does not match')
       assertBn(totalActiveBalance, jurorPeriod0Term1Balance, 'total active balance does not match')
-      assertBn(donatedFees, DONATED_FEES, 'donated fees does not match')
+      assertBn(donatedFees, expectedDonatedFees, 'donated fees does not match')
     })
 
     it('computes period details correctly with term 3 as checkpoint', async () => {
@@ -324,10 +341,11 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
       const { periodBalanceCheckpoint, feeToken: periodFeeToken, totalActiveBalance, donatedFees } = await subscriptions.getPeriod(0)
 
+      const expectedDonatedFees = totalActiveBalance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
       assertBn(periodBalanceCheckpoint, periodCheckpoint, 'checkpoint does not match')
       assert.equal(periodFeeToken, feeToken.address, 'fee token does not match')
       assertBn(totalActiveBalance, expectedTotalActiveBalance, 'total active balance does not match')
-      assertBn(donatedFees, DONATED_FEES, 'donated fees does not match')
+      assertBn(donatedFees, expectedDonatedFees, 'donated fees does not match')
     })
 
     it('computes period details correctly with term 3 as checkpoint after claim', async () => {
@@ -338,10 +356,11 @@ contract('CourtSubscriptions', ([_, payer, jurorPeriod0Term1, jurorPeriod0Term3,
 
       const { periodBalanceCheckpoint, feeToken: periodFeeToken, totalActiveBalance, donatedFees } = await subscriptions.getPeriod(0)
 
+      const expectedDonatedFees = totalActiveBalance.mul(DEFAULT_PERIOD_YIELD).div(PCT_BASE_HIGH_PRECISION)
       assertBn(periodBalanceCheckpoint, periodCheckpoint, 'checkpoint does not match')
       assert.equal(periodFeeToken, feeToken.address, 'fee token does not match')
       assertBn(totalActiveBalance, expectedTotalActiveBalance, 'total active balance does not match')
-      assertBn(donatedFees, DONATED_FEES, 'donated fees does not match')
+      assertBn(donatedFees, expectedDonatedFees, 'donated fees does not match')
     })
   })
 

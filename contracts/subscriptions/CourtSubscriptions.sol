@@ -5,6 +5,7 @@ import "../lib/os/SafeMath.sol";
 import "../lib/os/SafeMath64.sol";
 import "../lib/os/SafeERC20.sol";
 import "../lib/os/TimeHelpers.sol";
+import "../lib/PctHelpers.sol";
 
 import "../registry/IJurorsRegistry.sol";
 import "../court/controller/Controller.sol";
@@ -14,6 +15,7 @@ contract CourtSubscriptions is ControlledRecoverable, TimeHelpers {
     using SafeERC20 for ERC20;
     using SafeMath for uint256;
     using SafeMath64 for uint64;
+    using PctHelpers for uint256;
 
     string private constant ERROR_TOKEN_TRANSFER_FAILED = "CS_TOKEN_TRANSFER_FAILED";
     string private constant ERROR_PERIOD_DURATION_ZERO = "CS_PERIOD_DURATION_ZERO";
@@ -41,25 +43,30 @@ contract CourtSubscriptions is ControlledRecoverable, TimeHelpers {
     // ERC20 token used for the subscription fees
     ERC20 public currentFeeToken;
 
+    uint256 public periodPercentageYield;
+
     // List of periods indexed by ID
     mapping (uint256 => Period) internal periods;
 
     event FeesClaimed(address indexed juror, uint256 indexed periodId, uint256 jurorShare);
     event FeeTokenChanged(address previousFeeToken, address currentFeeToken);
+    event PeriodPercentageYieldChanged(uint256 previousYield, uint256 currenetYield);
 
     /**
     * @dev Initialize court subscriptions
     * @param _controller Address of the controller
     * @param _periodDuration Duration of a subscription period in Court terms
     * @param _feeToken Initial ERC20 token used for the subscription fees
+    * @param _periodPercentageYield The period yield where 100% == 1e18
     */
-    constructor(Controller _controller, uint64 _periodDuration, ERC20 _feeToken)
+    constructor(Controller _controller, uint64 _periodDuration, ERC20 _feeToken, uint256 _periodPercentageYield)
         ControlledRecoverable(_controller) public
     {
         // No need to explicitly call `Controlled` constructor since `ControlledRecoverable` is already doing it
         require(_periodDuration > 0, ERROR_PERIOD_DURATION_ZERO);
         periodDuration = _periodDuration;
         _setFeeToken(_feeToken);
+        _setPeriodPercentageYield(_periodPercentageYield);
     }
 
     /**
@@ -68,6 +75,14 @@ contract CourtSubscriptions is ControlledRecoverable, TimeHelpers {
     */
     function setFeeToken(ERC20 _feeToken) external onlyConfigGovernor {
         _setFeeToken(_feeToken);
+    }
+
+    /**
+    * @notice Set new period percentage yield to `_periodPercentageYield`
+    * @param _periodPercentageYield The period yield where 100% == 1e18
+    */
+    function setPeriodPercentageYield(uint256 _periodPercentageYield) external onlyConfigGovernor {
+        _setPeriodPercentageYield(_periodPercentageYield);
     }
 
     /**
@@ -229,6 +244,15 @@ contract CourtSubscriptions is ControlledRecoverable, TimeHelpers {
     }
 
     /**
+    * @dev Internal function to set a new period percentage yield
+    * @param _periodPercentageYield The period yield where 100% == 1e18
+    */
+    function _setPeriodPercentageYield(uint256 _periodPercentageYield) internal {
+        emit PeriodPercentageYieldChanged(periodPercentageYield, _periodPercentageYield);
+        periodPercentageYield = _periodPercentageYield;
+    }
+
+    /**
     * @dev Internal function to tell the identification number of the current period
     * @return Identification number of the current period
     */
@@ -298,7 +322,7 @@ contract CourtSubscriptions is ControlledRecoverable, TimeHelpers {
         IJurorsRegistry jurorsRegistry = _jurorsRegistry();
         periodBalanceCheckpoint = periodStartTermId.add(uint64(uint256(randomness) % periodDuration));
         totalActiveBalance = jurorsRegistry.totalActiveBalanceAt(periodBalanceCheckpoint);
-        donatedFees = feeToken.balanceOf(address(this));
+        donatedFees = totalActiveBalance.pctHighPrecision(periodPercentageYield);
     }
 
     /**

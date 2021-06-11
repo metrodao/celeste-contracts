@@ -58,8 +58,9 @@ const DEFAULTS = {
   minActiveBalance:                   bigExp(100, 18), //  100 ANJ is the minimum balance jurors must activate to participate in the Court
   minMaxPctTotalSupply:               bigExp(1, 15),   //  0.1% of the current total supply is the max a juror can activate when the total supply stake is activated
   maxMaxPctTotalSupply:               bigExp(1, 16),   //  1% of the current total supply is the max a juror can activate when 0 stake is activated
-  finalRoundWeightPrecision:          bn(1000),        //  use to improve division rounding for final round maths
-  subscriptionPeriodDuration:         bn(10)           //  each subscription period lasts 10 terms
+  finalRoundWeightPrecision:          bn(1000),           //  use to improve division rounding for final round maths
+  subscriptionPeriodDuration:         bn(10),             //  each subscription period lasts 10 terms
+  periodPercentageYield:              bigExp(2, 16)    //  each subscription period pays out 2% of total active stake
 }
 
 module.exports = (web3, artifacts) => {
@@ -420,7 +421,8 @@ module.exports = (web3, artifacts) => {
         this.subscriptions = await this.artifacts.require('CourtSubscriptions').new(
           this.court.address,
           this.subscriptionPeriodDuration,
-          this.feeToken.address
+          this.feeToken.address,
+          this.periodPercentageYield
         )
       }
 
