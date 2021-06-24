@@ -1,19 +1,19 @@
 pragma solidity ^0.5.8;
 
-import "../court/AragonCourt.sol";
+import "../court/Celeste.sol";
 import "./IPriceOracle.sol";
 import "../lib/os/ERC20.sol";
 
 contract FeesUpdater {
 
     IPriceOracle public priceOracle;
-    AragonCourt public court;
+    Celeste public court;
     address public courtStableToken;
     uint256[3] public courtStableValueFees; // [jurorFee, draftFee, settleFee]
 
     constructor(
         IPriceOracle _priceOracle,
-        AragonCourt _court,
+        Celeste _court,
         address _courtStableToken,
         uint256[3] memory _courtStableValueFees
     ) public {

@@ -1,8 +1,8 @@
 {
   "name": "@1hive/celeste",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Celeste Oracle",
-  "author": "Aragon Association",
+  "author": "1Hive",
   "license": "GPL-3.0",
   "files": [
     "/abi",

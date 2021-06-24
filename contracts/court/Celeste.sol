@@ -8,7 +8,7 @@ import "../arbitration/IArbitrable.sol";
 import "../disputes/IDisputeManager.sol";
 
 
-contract AragonCourt is Controller, IArbitrator {
+contract Celeste is Controller, IArbitrator {
     using Uint256Helpers for uint256;
 
     // Arbitrable interface ID based on ERC-165

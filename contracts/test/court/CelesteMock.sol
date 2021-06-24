@@ -1,10 +1,10 @@
 pragma solidity ^0.5.8;
 
-import "../../court/AragonCourt.sol";
+import "../../court/Celeste.sol";
 import "../lib/TimeHelpersMock.sol";
 
 
-contract AragonCourtMock is AragonCourt, TimeHelpersMock {
+contract CelesteMock is Celeste, TimeHelpersMock {
     uint64 internal mockedTermId;
     bytes32 internal mockedTermRandomness;
 
@@ -19,7 +19,7 @@ contract AragonCourtMock is AragonCourt, TimeHelpersMock {
         uint256[2] memory _appealCollateralParams,
         uint256[3] memory _jurorsParams
     )
-        AragonCourt(
+        Celeste(
             _termParams,
             _governors,
             _feeToken,
