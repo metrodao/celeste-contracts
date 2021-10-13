@@ -8,53 +8,38 @@ contract MockCeleste is IArbitrator {
     // Some outcomes [0, 1, and 2] are reserved by Aragon Court: "missing", "leaked", and "refused", respectively.
     // This Arbitrable introduces the concept of the challenger/submitter (a binary outcome) as 3/4.
     // Note that Aragon Court emits the lowest outcome in the event of a tie, and so for us, we prefer the challenger.
-    uint256 public constant DISPUTES_RULING_CHALLENGER = 3;
-    uint256 public constant DISPUTES_RULING_SUBMITTER = 4;
-    uint256 public constant DISPUTES_NOT_RULED = 0;
+    uint256 private constant DISPUTES_NOT_RULED = 0;
+    uint256 private constant DISPUTES_RULING_CHALLENGER = 3;
+    uint256 private constant DISPUTES_RULING_SUBMITTER = 4;
 
-    enum Outcome {
+    enum State {
         NOT_DISPUTED,
         DISPUTED,
+        DISPUTES_NOT_RULED,
         DISPUTES_RULING_CHALLENGER,
         DISPUTES_RULING_SUBMITTER
     }
 
     struct Dispute {
         address subject;
-        Outcome outcome;
+        State state;
     }
 
     uint256 public currentId;
-    mapping(uint256 => Dispute) public disputes;
     address public owner;
-    mapping(address => bool) public arbitrators;
+    mapping(uint256 => Dispute) public disputes;
 
     modifier onlyOwner {
         require(msg.sender == owner, "ERR:NOT_OWNER");
         _;
     }
 
-    modifier onlyArbitrator {
-        require(arbitrators[msg.sender] == true, "ERR:NOT_ARBITRATOR");
-        _;
-    }
-
     constructor() public {
         owner = msg.sender;
-        arbitrators[msg.sender] = true;
     }
 
     function setOwner(address _owner) public onlyOwner {
         owner = _owner;
-    }
-
-    function addArbitrator(address _arbitrator) public onlyOwner {
-        arbitrators[_arbitrator] = true;
-    }
-
-    function revokeArbitrator(address _arbitrator) public onlyOwner {
-        require(arbitrators[_arbitrator] == true, "ERR:SHOULD_BE_ARBITRATOR");
-        arbitrators[_arbitrator] = false;
     }
 
     /**
@@ -65,16 +50,18 @@ contract MockCeleste is IArbitrator {
     */
     function createDispute(uint256 _possibleRulings, bytes calldata _metadata) external returns (uint256) {
         uint256 disputeId = currentId;
-        disputes[disputeId] = Dispute(msg.sender, Outcome.DISPUTED);
+        disputes[disputeId] = Dispute(msg.sender, State.DISPUTED);
         currentId++;
         return disputeId;
     }
 
-    function decideDispute(uint256 _disputeId, bool _acceptChallenge) external onlyArbitrator {
+    function decideDispute(uint256 _disputeId, State _state) external onlyOwner {
+        require(_state != State.NOT_DISPUTED && _state != State.DISPUTED, "ERR:OUTCOME_NOT_ASSIGNABLE");
+
         Dispute storage dispute = disputes[_disputeId];
-        require(dispute.outcome == Outcome.DISPUTED, "ERR:NOT_DISPUTED");
-        dispute.outcome = _acceptChallenge ?
-            Outcome.DISPUTES_RULING_CHALLENGER : Outcome.DISPUTES_RULING_SUBMITTER;
+        require(dispute.state == State.DISPUTED, "ERR:NOT_DISPUTED");
+
+        dispute.state = _state;
     }
 
     /**
@@ -100,12 +87,14 @@ contract MockCeleste is IArbitrator {
     function rule(uint256 _disputeId) external returns (address subject, uint256 ruling) {
         Dispute storage dispute = disputes[_disputeId];
 
-        if (dispute.outcome == Outcome.DISPUTES_RULING_CHALLENGER) {
+        if (dispute.state == State.DISPUTES_RULING_CHALLENGER) {
             return (dispute.subject, DISPUTES_RULING_CHALLENGER);
-        } else if (dispute.outcome == Outcome.DISPUTES_RULING_SUBMITTER) {
+        } else if (dispute.state == State.DISPUTES_RULING_SUBMITTER) {
             return (dispute.subject, DISPUTES_RULING_SUBMITTER);
+        } else if (dispute.state == State.DISPUTES_NOT_RULED) {
+            return (dispute.subject, DISPUTES_NOT_RULED);
         } else {
-            return (address(0), DISPUTES_NOT_RULED);
+            revert();
         }
     }
 
