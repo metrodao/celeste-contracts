@@ -2,7 +2,7 @@ pragma solidity ^0.5.8;
 
 import "../arbitration/IArbitrator.sol";
 
-contract MockCeleste is IArbitrator {
+contract OwnableCeleste is IArbitrator {
 
     // Note that Aragon Court treats the possible outcomes as arbitrary numbers, leaving the Arbitrable (us) to define how to understand them.
     // Some outcomes [0, 1, and 2] are reserved by Aragon Court: "missing", "leaked", and "refused", respectively.
