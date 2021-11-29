@@ -34,6 +34,7 @@ interface IConfig {
     *         0. minActiveBalance Minimum amount of juror tokens that can be activated
     *         1. minMaxPctTotalSupply The min max percent of the total supply a juror can activate, applied for total supply active stake
     *         2. maxMaxPctTotalSupply The max max percent of the total supply a juror can activate, applied for 0 active stake
+    *         3. feeTokenTotalSupply Set for networks that don't have access to the fee token's total supply, set to 0 for networks that do
     */
     function getConfig(uint64 _termId) external view
         returns (
@@ -43,7 +44,7 @@ interface IConfig {
             uint64[9] memory roundParams,
             uint16[2] memory pcts,
             uint256[2] memory appealCollateralParams,
-            uint256[3] memory jurorsParams
+            uint256[4] memory jurorsParams
         );
 
     /**

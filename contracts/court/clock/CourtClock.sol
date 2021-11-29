@@ -221,7 +221,7 @@ contract CourtClock is IClock, TimeHelpers {
             // already assumed to fit in uint64.
             Term storage previousTerm = terms[currentTermId++];
             Term storage currentTerm = terms[currentTermId];
-            (ERC20 feeToken,,,,,,) = _getConfig(currentTermId);
+            (ERC20 feeToken,,,,,, uint256[4] memory jurorsParams) = _getConfig(currentTermId);
             _onTermTransitioned(currentTermId);
 
             // Set the start time of the new term. Note that we are using a constant term duration value to guarantee
@@ -232,7 +232,9 @@ contract CourtClock is IClock, TimeHelpers {
             // block number that is set once the term has started. Note that this information could not be known beforehand.
             currentTerm.randomnessBN = blockNumber + 1;
 
-            currentTerm.celesteTokenTotalSupply = feeToken.totalSupply();
+            // We check if the feeTokenTotalSupply is set, which means this networks feeToken doesn't have an accurate
+            // totalSupply so we will use the hardcoded value
+            currentTerm.celesteTokenTotalSupply = jurorsParams[3] > 0 ? jurorsParams[3] : feeToken.totalSupply();
         }
 
         termId = currentTermId;
@@ -337,6 +339,8 @@ contract CourtClock is IClock, TimeHelpers {
     *         0. minActiveBalance Minimum amount of juror tokens that can be activated
     *         1. minMaxPctTotalSupply The min max percent of the total supply a juror can activate, applied for total supply active stake
     *         2. maxMaxPctTotalSupply The max max percent of the total supply a juror can activate, applied for 0 active stake
+    *         3. feeTokenTotalSupply Set for networks that don't have access to the fee token's total supply, set to 0 for networks that do
+
     */
     function _getConfig(uint64 _termId) internal view returns (
         ERC20 feeToken,
@@ -345,6 +349,6 @@ contract CourtClock is IClock, TimeHelpers {
         uint64[9] memory roundParams,
         uint16[2] memory pcts,
         uint256[2] memory appealCollateralParams,
-        uint256[3] memory jurorsParams
+        uint256[4] memory jurorsParams
     );
 }

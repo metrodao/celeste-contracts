@@ -1,4 +1,4 @@
-const { bn } = require('../../helpers/lib/numbers')
+const { bn, bigExp } = require('../../helpers/lib/numbers')
 const { assertBn } = require('../../helpers/asserts/assertBn')
 const { buildHelper } = require('../../helpers/wrappers/court')(web3, artifacts)
 const { assertRevert } = require('../../helpers/asserts/assertThrow')
@@ -10,7 +10,7 @@ const { assertAmountOfEvents, assertEvent } = require('../../helpers/asserts/ass
 const ERC20 = artifacts.require('ERC20Mock')
 
 contract('Controller', ([_, someone, configGovernor]) => {
-  let courtHelper, controller, ANJ
+  let courtHelper, controller, altController, ANJ
 
   const EMPTY_RANDOMNESS = '0x0000000000000000000000000000000000000000000000000000000000000000'
   const ANJ_INITIAL_TOTAL_SUPPLY = bn(1000)
@@ -67,10 +67,12 @@ contract('Controller', ([_, someone, configGovernor]) => {
     const firstTermStartTime = bn(NEXT_WEEK)
     const zeroTermStartTime = firstTermStartTime.sub(termDuration)
     const anjNewSupply = bn(1000)
+    const feeTokenTotalSupply = bigExp(30000, 18)
 
     beforeEach('create controller', async () => {
       await ANJ.generateTokens(someone, anjNewSupply)
       controller = await courtHelper.deploy({ termDuration, firstTermStartTime, feeToken: ANJ })
+      altController = await courtHelper.deploy({ termDuration, firstTermStartTime, feeToken: ANJ, feeTokenTotalSupply: feeTokenTotalSupply})
     })
 
     const itRevertsOnHeartbeat = maxTransitionTerms => {
@@ -146,6 +148,21 @@ contract('Controller', ([_, someone, configGovernor]) => {
           assertBn(celesteTokenTotalSupply, expectedTotalSupply, `total supply for term ${termId} incorrect`)
         }
       })
+
+      it(`updates celesteTokenTotalSupply correctly ${expectedTransitions} times when hardcoded`, async () => {
+        const lastEnsuredTermId = await altController.getLastEnsuredTermId()
+
+        for (let transition = 1; transition <= expectedTransitions; transition++) {
+          await altController.heartbeat(bn(1))
+          await ANJ.generateTokens(someone, anjNewSupply)
+          const termId = lastEnsuredTermId.add(bn(transition))
+
+          const { celesteTokenTotalSupply } = await altController.getTerm(termId)
+
+          const expectedTotalSupply = feeTokenTotalSupply
+          assertBn(celesteTokenTotalSupply, expectedTotalSupply, `total supply for term ${termId} incorrect`)
+        }
+      })
     }
 
     context('when current timestamp is before zero term start time', () => {
@@ -169,6 +186,7 @@ contract('Controller', ([_, someone, configGovernor]) => {
     context('when current timestamp is right at the beginning of the first term', () => {
       beforeEach('set current timestamp', async () => {
         await controller.mockSetTimestamp(firstTermStartTime)
+        await altController.mockSetTimestamp(firstTermStartTime)
       })
 
       itNeedsTermTransitions(1)
@@ -191,6 +209,7 @@ contract('Controller', ([_, someone, configGovernor]) => {
     context('when current timestamp is right at the end of the first term ', () => {
       beforeEach('set current timestamp', async () => {
         await controller.mockSetTimestamp(firstTermStartTime.add(termDuration))
+        await altController.mockSetTimestamp(firstTermStartTime.add(termDuration))
       })
 
       itNeedsTermTransitions(2)
@@ -229,6 +248,7 @@ contract('Controller', ([_, someone, configGovernor]) => {
     context('when current timestamp is two terms after the first term', () => {
       beforeEach('set current timestamp', async () => {
         await controller.mockSetTimestamp(firstTermStartTime.add(termDuration.mul(bn(2))))
+        await altController.mockSetTimestamp(firstTermStartTime.add(termDuration.mul(bn(2))))
       })
 
       itNeedsTermTransitions(3)

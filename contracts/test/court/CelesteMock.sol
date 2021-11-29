@@ -17,7 +17,7 @@ contract CelesteMock is Celeste, TimeHelpersMock {
         uint64[9] memory _roundParams,
         uint16[2] memory _pcts,
         uint256[2] memory _appealCollateralParams,
-        uint256[3] memory _jurorsParams
+        uint256[4] memory _jurorsParams
     )
         Celeste(
             _termParams,

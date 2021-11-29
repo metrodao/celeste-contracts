@@ -44,7 +44,7 @@ contract FeesUpdater {
         uint64[9] memory roundParams,
         uint16[2] memory pcts,
         uint256[2] memory appealCollateralParams,
-        uint256[3] memory jurorsParams
+        uint256[4] memory jurorsParams
         ) = court.getConfig(latestPossibleTerm);
 
         uint256[3] memory convertedFees;

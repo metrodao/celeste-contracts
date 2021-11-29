@@ -25,7 +25,7 @@ contract ConfigConsumer is CourtConfigData {
         uint64[9] memory _roundParams,
         uint16[2] memory _pcts,
         uint256[2] memory _appealCollateralParams,
-        uint256[3] memory _jurorsParams) = _courtConfig().getConfig(_termId);
+        uint256[4] memory _jurorsParams) = _courtConfig().getConfig(_termId);
 
         Config memory config;
 
@@ -56,7 +56,8 @@ contract ConfigConsumer is CourtConfigData {
         config.jurors = JurorsConfig({
             minActiveBalance: _jurorsParams[0],
             minMaxPctTotalSupply: _jurorsParams[1],
-            maxMaxPctTotalSupply: _jurorsParams[2]
+            maxMaxPctTotalSupply: _jurorsParams[2],
+            feeTokenTotalSupply: _jurorsParams[3]
         });
 
         return config;

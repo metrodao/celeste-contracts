@@ -39,6 +39,7 @@ contract CourtConfigData {
         uint256 minActiveBalance;               // Minimum amount of tokens jurors have to activate to participate in the Court
         uint256 minMaxPctTotalSupply;           // Minimum max percent of the total supply a juror can activate, applied for total supply active stake
         uint256 maxMaxPctTotalSupply;           // Maximum max percent of the total supply a juror can activate, applied for 0 active stake
+        uint256 feeTokenTotalSupply;            // Set for networks that don't have access to the fee token's total supply, set to 0 for networks that do
     }
 
     struct DraftConfig {

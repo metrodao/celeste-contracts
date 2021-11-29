@@ -32,6 +32,7 @@ contract('Controller', ([_, configGovernor, feesUpdater, someone, drafter, appea
   const minActiveBalance = bigExp(200, 18)
   const minMaxPctTotalSupply = bigExp(2, 15) // 0.2%
   const maxMaxPctTotalSupply = bigExp(2, 16) // 2%
+  const feeTokenTotalSupply = bn(0)
 
   const checkConfig = async (termId, expectedConfig) => assertConfig(await courtHelper.getConfig(termId), expectedConfig)
 
@@ -58,7 +59,8 @@ contract('Controller', ([_, configGovernor, feesUpdater, someone, drafter, appea
       appealConfirmCollateralFactor,
       minActiveBalance,
       minMaxPctTotalSupply,
-      maxMaxPctTotalSupply
+      maxMaxPctTotalSupply,
+      feeTokenTotalSupply
     }
   })
 

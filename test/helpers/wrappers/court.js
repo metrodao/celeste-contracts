@@ -58,6 +58,7 @@ const DEFAULTS = {
   minActiveBalance:                   bigExp(100, 18), //  100 ANJ is the minimum balance jurors must activate to participate in the Court
   minMaxPctTotalSupply:               bigExp(1, 15),   //  0.1% of the current total supply is the max a juror can activate when the total supply stake is activated
   maxMaxPctTotalSupply:               bigExp(1, 16),   //  1% of the current total supply is the max a juror can activate when 0 stake is activated
+  feeTokenTotalSupply:                bn(0),              //  0 means the total supply used will be the real fee token total supply
   finalRoundWeightPrecision:          bn(1000),           //  use to improve division rounding for final round maths
   subscriptionPeriodDuration:         bn(10),             //  each subscription period lasts 10 terms
   periodPercentageYield:              bigExp(2, 16)    //  each subscription period pays out 2% of total active stake
@@ -96,7 +97,8 @@ module.exports = (web3, artifacts) => {
         appealConfirmCollateralFactor: appealCollateralParams[1],
         minActiveBalance: jurorsParams[0],
         minMaxPctTotalSupply: jurorsParams[1],
-        maxMaxPctTotalSupply: jurorsParams[2]
+        maxMaxPctTotalSupply: jurorsParams[2],
+        feeTokenTotalSupply: jurorsParams[3]
       }
     }
 
@@ -363,7 +365,7 @@ module.exports = (web3, artifacts) => {
         evidenceTerms, commitTerms, revealTerms, appealTerms, appealConfirmTerms, firstRoundJurorsNumber, appealStepFactor, maxRegularAppealRounds, finalRoundLockTerms,
         penaltyPct, finalRoundReduction,
         appealCollateralFactor, appealConfirmCollateralFactor,
-        minActiveBalance, minMaxPctTotalSupply, maxMaxPctTotalSupply
+        minActiveBalance, minMaxPctTotalSupply, maxMaxPctTotalSupply, feeTokenTotalSupply
       } = newConfig
 
       return this.court.setConfig(
@@ -374,7 +376,7 @@ module.exports = (web3, artifacts) => {
         [evidenceTerms, commitTerms, revealTerms, appealTerms, appealConfirmTerms, firstRoundJurorsNumber, appealStepFactor, maxRegularAppealRounds, finalRoundLockTerms],
         [penaltyPct, finalRoundReduction],
         [appealCollateralFactor, appealConfirmCollateralFactor],
-        [minActiveBalance, minMaxPctTotalSupply, maxMaxPctTotalSupply],
+        [minActiveBalance, minMaxPctTotalSupply, maxMaxPctTotalSupply, feeTokenTotalSupply],
         txParams
       )
     }
@@ -388,7 +390,7 @@ module.exports = (web3, artifacts) => {
       if (!this.modulesGovernor) this.modulesGovernor = await this._getAccount(0)
       if (!this.feeToken) this.feeToken = await this.artifacts.require('ERC20Mock').new('Court Token', 'CTT', 18)
 
-      this.court = await this.artifacts.require('AragonCourtMock').new(
+      this.court = await this.artifacts.require('CelesteMock').new(
         [this.termDuration, this.firstTermStartTime],
         [this.fundsGovernor, this.configGovernor, this.feesUpdater, this.modulesGovernor],
         this.feeToken.address,
@@ -397,7 +399,7 @@ module.exports = (web3, artifacts) => {
         [this.evidenceTerms, this.commitTerms, this.revealTerms, this.appealTerms, this.appealConfirmTerms, this.firstRoundJurorsNumber, this.appealStepFactor, this.maxRegularAppealRounds, this.finalRoundLockTerms],
         [this.penaltyPct, this.finalRoundReduction],
         [this.appealCollateralFactor, this.appealConfirmCollateralFactor],
-        [this.minActiveBalance, this.minMaxPctTotalSupply, this.maxMaxPctTotalSupply]
+        [this.minActiveBalance, this.minMaxPctTotalSupply, this.maxMaxPctTotalSupply, this.feeTokenTotalSupply]
       )
 
       if (!this.disputeManager) this.disputeManager = await this.artifacts.require('DisputeManager').new(this.court.address, this.maxJurorsPerDraftBatch, this.skippedDisputes)
